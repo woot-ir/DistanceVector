@@ -4,7 +4,7 @@
  */
 
 #include <iostream>
-#include <string.h>
+#include <string>
 #include <map>
 #include <stdlib.h>
 #include <fstream>
@@ -13,6 +13,9 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
 
 
 using namespace  std;
@@ -42,6 +45,10 @@ void initialize();
 
 void tokenize(char *);
 int docmd(char *);
+
+
+
+
 
 struct NODE{
     int id;
@@ -73,15 +80,80 @@ struct pcmds cmds[] = {
     {"crash", crash, 7}
   };
 
+
+
 struct NODE node[6];
 vector<int> currentNeighbors;
+vector<int>::iterator currentNeighbors_itr;
 char hostIP[INET6_ADDRSTRLEN];
+short int hostPort;
+short int hostId;
 char *tokens[MAXARG];
 int tokenize_count;
+char commandline_copy[256];
+int interval;
+int numberOfServers = 0;
+int numberOfNeighbors = 0;
+bool serverFlag = false;
+int serverListner;
+int count1= 0;
 
 
 
-
+void update()
+{
+    // check if the update command is correct
+    // check if the update is for the server ie display a message if the command says update 2 3 7
+    // create a string according to the msg format
+    // send the string to the neighbors
+    // update the local structure
+    // 
+    if(tokenize_count == 3)
+    {
+        char tempId[10];
+        char noOfFields[2];
+        char hostPort[2];
+        
+        int n;
+        n = sprintf (tempId,"%d",hostId);
+        if(strcmp(tokens[1], tempId) == 0)
+        {
+            cout << "Update success";
+            
+        }
+        else
+        {
+            cout << "You are updating distance at the wrong server";
+        }
+        
+    }
+    else
+    {
+        cout << "The update command is not correct\n";
+        return;
+    }
+    
+}
+void step()
+{
+    
+}
+void packets()
+{
+    
+}
+void display()
+{
+    
+}
+void disable()
+{
+    
+}
+void crash ()
+{
+    
+}
 
 
 /**
@@ -143,11 +215,9 @@ void tokenize(char *cmdline)
                         {
                             printf("%s\n",tokens[i]);
                         }*/
+                        
+                      
 }
-
-
-
-
 
 
 /**
@@ -174,8 +244,7 @@ void initialize()
 void initialize(char initFile[256])
 {
     ifstream initializationFile;
-    int numberOfServers = 0;
-    int numberOfNeighbors = 0;
+    
     string STRING;
     
     initializationFile.open(initFile, ifstream::in);
@@ -223,13 +292,22 @@ void initialize(char initFile[256])
 //              cout << endl;
               
               initLine_itr = initLine.begin();
+              
               id=atoi((*initLine_itr).c_str());
               
               node[id].id = id;
               strcpy(node[id].ip,initLine[1].c_str());
-              if(strcmp(node[id].ip,hostIP)==0)
+		
+               cout << "\nnode[id].ip-->" << node[id].ip << "\t" << strlen(node[id].ip);
+		cout << "\nHostIP--->" << hostIP << "\t" << strlen(hostIP);	
+	//	cout << ""
+		if(strncmp(node[id].ip,hostIP,16)==0)
               {
+		cout << "Inside the if condition"; 
                   node[id].cost = 0;
+                  hostId = id;
+                  hostPort = atoi(initLine[2].c_str());
+                  
               }
               node[id].portNo = atoi(initLine[2].c_str());
       
@@ -265,8 +343,14 @@ void initialize(char initFile[256])
             cout << node[i].id << "\t" << node[i].ip << "\t" << node[i].portNo << "\t"<< node[i].cost << endl;
         }
 	initializationFile.close();
-        cout << "IP" << atoi(node[1].ip);
-        cout << "Current neighbors" << endl;
+        cout << "\nhostIP" << hostIP;
+        cout << "\nhostPort" << hostPort;
+        cout << "\nCurrent neighbors" << endl;
+        for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end();currentNeighbors_itr++)
+        {
+            cout << *currentNeighbors_itr << "\t" ;
+            fflush(stdin);
+        }
     
 }
 
@@ -279,19 +363,123 @@ void initialize(char initFile[256])
 void start_shell()
 {
 	
-	start_udp_server();
-	
 	write(1,"Bulls>",6);
 	for(;;)
 	{
 		check_on_stdin();
-		check_on_udp_main_server();
+		//check_on_udp_main_server();
 		
 		
 		
 	}
 }
 
+
+void start_udp_server()
+{
+   int sock;
+       // int addr_len;
+        
+        struct sockaddr_in server_addr ;
+
+
+        if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) 
+        {
+            perror("Socket");
+            exit(1);
+        }
+
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(hostPort);
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+        bzero(&(server_addr.sin_zero),8);
+
+
+        if (bind(sock,(struct sockaddr *)&server_addr,
+            sizeof(struct sockaddr)) == -1)
+        {
+            perror("Bind");
+            exit(1);
+        }
+
+        //addr_len = sizeof(struct sockaddr);
+//		
+	cout << "\nUDPServer Waiting for client on port" << hostPort;
+        fflush(stdout);
+        
+        serverListner = sock;
+
+}
+
+//int count= 0;
+
+void check_on_stdin()
+{
+
+	fd_set readfds;
+	struct timeval tv; 
+	char cmdline[256];
+        int n =0;
+        if(count1 == 0)
+        {
+                FD_SET(0,&readfds);
+        }
+        else
+        {
+                FD_SET(serverListner,&readfds);
+                FD_SET(0,&readfds);
+        }       
+        n = serverListner + 1;
+	tv.tv_sec=0;
+	tv.tv_usec=0;
+
+        if((select(n,&readfds,NULL, NULL, &tv)) == -1)
+	    {
+	      perror ("select");
+	      exit (1);
+	    }
+	  if (FD_ISSET(0, &readfds))
+	    {
+	   //   check=1;
+	      fgets(cmdline, 256, stdin);
+	      if (cmdline[strlen (cmdline) - 1] != '\0')
+	      	 cmdline[strlen (cmdline) - 1] = '\0';
+	        strcpy(commandline_copy,cmdline);
+                count1++;
+		docmd(cmdline);
+	    }
+          else if(FD_ISSET(serverListner,&readfds))
+          {
+              cout << "Receiving some information on the server";
+          }
+	
+}
+
+char *routingUpdateInterval = NULL;
+    
+void server()
+{
+    serverFlag = true;
+    if(tokenize_count == 5)
+    {
+        find_ip_of_current_Server();
+    
+        initialize(tokens[2]);
+    
+        routingUpdateInterval = tokens[4];
+    
+        interval = atoi(routingUpdateInterval);
+        
+        start_udp_server();
+    }
+    else
+    {
+        cout << "Invalid number of arguments\n";
+        //fflush(stdout);
+        return;
+    }
+    
+}
 /**
  * //This is the logic used to find the host IP. This is using system command
  */
@@ -302,7 +490,7 @@ void find_ip_of_current_Server()
         int fd;
         char *host;
         host=getenv("HOST");
-        
+        char hostIP1[INET6_ADDRSTRLEN];
 	system("rm temphost temphost1");
 	system("touch temphost temphost1");
 	sprintf(cmd,"host %s>temphost",host);
@@ -310,7 +498,8 @@ void find_ip_of_current_Server()
 	sprintf(cmd,"cut -d \" \" -f4 temphost>temphost1");
 	system(cmd);
         fd=open("temphost1",O_RDWR,0);
-	read(fd,hostIP,INET_ADDRSTRLEN);
+	read(fd,hostIP1,INET_ADDRSTRLEN);
+	strncpy(hostIP,hostIP1,strlen(hostIP1)-1);
   	close(fd);
 }
 
@@ -321,36 +510,36 @@ int main(int argc, char** argv)
     
     char option; 
     char *topologyFileName = NULL;
-    char *routingUpdateInterval = NULL;
-    int interval;  
+    
     char fileName[512];
    
     
-    while ((option = getopt(argc, argv, "t::i::")) != -1)
-    {
-        switch(option)
-        {
-            case 'i' : routingUpdateInterval = optarg;
-            break;
-            case 't' : topologyFileName = optarg;
-            break;
-        }
-    }
+//    while ((option = getopt(argc, argv, "t::i::")) != -1)
+//    {
+//        switch(option)
+//        {
+//            case 'i' : routingUpdateInterval = optarg;
+//            break;
+//            case 't' : topologyFileName = optarg;
+//            break;
+//        }
+//    }
     
-    interval = atoi(routingUpdateInterval);
-    strcpy(fileName,topologyFileName);
+    
+   // strcpy(fileName,topologyFileName);
     
     initialize();
+   // strcpy(hostIP,"128.205.36.8");
+    start_shell ();
     
    // find_ip_of_current_Server();
-    strcpy(hostIP,"128.205.36.8");
+    
 
     
-    initialize(fileName);
+   // initialize(fileName);
     
 	
 	
         
         return 0;
 }
-

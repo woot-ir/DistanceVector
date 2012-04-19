@@ -67,7 +67,7 @@ copyFileToTmpDir "${OUTPUT_PATH}" "${NBTMPDIR}/${PACKAGE_TOP_DIR}bin/${OUTPUT_BA
 cd "${TOP}"
 rm -f ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/package/distancevector.tar
 cd ${NBTMPDIR}
-tar -vcf ../../../../${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/package/distancevector.tar *
+tar -v cf ../../../../${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/package/distancevector.tar *
 checkReturnCode
 
 # Cleanup
