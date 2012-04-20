@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>      
 
 
 
@@ -23,6 +24,8 @@ using namespace  std;
 #define MAXARG 7
 
 #define MAXCMD 7
+
+#define MAXSIZE 544
 
 
 
@@ -42,6 +45,8 @@ void check_on_udp_main_server();
 void find_ip_of_current_Server();
 void initialize(char );
 void initialize();
+void createUpdateMessage();
+void sendUpdateMessageToNeighbors();
 
 void tokenize(char *);
 int docmd(char *);
@@ -51,11 +56,11 @@ int docmd(char *);
 
 
 struct NODE{
-    int id;
-    int portNo;
+    short int id;
+    short int portNo;
     char ip[INET6_ADDRSTRLEN];
-    int cost;
-    int nextHopId;
+    short int cost;
+    short int nextHopId;
 };
 
 
@@ -83,6 +88,7 @@ struct pcmds cmds[] = {
 
 
 struct NODE node[6];
+struct NODE receivingStructure[6];
 vector<int> currentNeighbors;
 vector<int>::iterator currentNeighbors_itr;
 char hostIP[INET6_ADDRSTRLEN];
@@ -92,45 +98,116 @@ char *tokens[MAXARG];
 int tokenize_count;
 char commandline_copy[256];
 int interval;
-int numberOfServers = 0;
-int numberOfNeighbors = 0;
+short int numberOfServers = 0;
+short int numberOfNeighbors = 0;
 bool serverFlag = false;
 int serverListner;
 int count1= 0;
+char updateMessage[MAXSIZE];
 
 
+void sendUpdateMessageToNeighbors()
+{
+    
+    
+    for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end(); currentNeighbors_itr++)
+    {
+        
+        if(node[*currentNeighbors_itr].cost != 32767)
+        {
+                struct sockaddr_in server_addr;
+                struct hostent *host;
+              //  host= (struct hostent *) gethostbyname((char *)node[*currentNeighbors_itr].ip);
+                int sock;
+        
+                if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+                {
+                        perror("socket");
+                        exit(1);
+                }
+            
+                server_addr.sin_family = AF_INET;
+                server_addr.sin_port = htons(node[*currentNeighbors_itr].portNo);
+                server_addr.sin_addr =  inet_addr(node[*currentNeighbors_itr].ip);                                         //*((struct in_addr *)host->h_addr);
+                bzero(&(server_addr.sin_zero),8);
+                
+                sendto(sock, updateMessage, strlen(updateMessage), 0,(struct sockaddr *)&server_addr, sizeof(struct sockaddr));
+            
+        }
+    }
+    
+}
+//    number of servers(2) + Host server port(2) +Host serverIP(4)
+//                                +
+//   ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
+void createUpdateMessage()
+{
+    
+    short int zero = 0;
+    unsigned int tempSourceIP = inet_addr(hostIP);
+    memset(updateMessage,'\0',MAXSIZE);
+    
+    memcpy(updateMessage,&numberOfServers,2);
+    memcpy(updateMessage+2,&hostPort,2);
+    memcpy(updateMessage+2,&tempSourceIP,4);
+    for(int i = 1;i < numberOfServers;i++)
+    {
+        unsigned int tempSourceIP1 = inet_addr(node[i].ip);
+        memcpy(updateMessage+4,&tempSourceIP1,4);
+        memcpy(updateMessage+4,&node[i].portNo,2);
+        memcpy(updateMessage+2,&zero,2);
+        memcpy(updateMessage+2,&node[i].id,2);
+        memcpy(updateMessage+2,&node[i].cost,2);
+    }
+
+}
 
 void update()
 {
     // check if the update command is correct
     // check if the update is for the server ie display a message if the command says update 2 3 7
-    // create a string according to the msg format
-    // send the string to the neighbors
-    // update the local structure
+    
     // 
-    if(tokenize_count == 3)
+    if(tokenize_count == 4 && serverFlag)
     {
-        char tempId[10];
+        char tempId[1];
         char noOfFields[2];
         char hostPort[2];
         
         int n;
         n = sprintf (tempId,"%d",hostId);
-        if(strcmp(tokens[1], tempId) == 0)
+        if(strncmp(tokens[1], tempId,1) == 0)
         {
+            // update the local structure eg : - update 1 2 8 in server 1 
+            if(strcmp(tokens[3],"inf") == 0)
+            {
+                node[atoi(tokens[2])].cost = 32767;
+            }
+            else
+            {
+                node[atoi(tokens[2])].cost = atoi(tokens[3]);
+            }
+           // create a string according to the msg format
+            createUpdateMessage();
+           // send the string to the neighbors if the link is not equal to infinity
+            sendUpdateMessageToNeighbors();
+           
             cout << "Update success";
+		fflush(stdout);
             
         }
         else
         {
             cout << "You are updating distance at the wrong server";
+		fflush(stdout);
         }
         
     }
     else
     {
-        cout << "The update command is not correct\n";
-        return;
+        cout << "The update command is not correct or server command is not executed\n";
+        fflush(stdout);
+	 return;
     }
     
 }
@@ -227,11 +304,11 @@ void initialize()
 {
     for(int i = 1;i < 6;i++)
     {
-        node[i].cost = 999999;
-        node[i].id = 999999;
+        node[i].cost = 32767;
+        node[i].id = 32767;
         strcpy(node[i].ip ," ");
-        node[i].nextHopId = 999999;
-        node[i].portNo = 999999;
+        node[i].nextHopId = 32767;
+        node[i].portNo = 32767;
     }
     
 }
@@ -285,12 +362,6 @@ void initialize(char initFile[256])
                          
               }
               
-//              for(;initLine_itr != initLine.end();initLine_itr++)
-//              {
-//                  cout << *initLine_itr << endl;
-//              }
-//              cout << endl;
-              
               initLine_itr = initLine.begin();
               
               id=atoi((*initLine_itr).c_str());
@@ -300,14 +371,14 @@ void initialize(char initFile[256])
 		
                cout << "\nnode[id].ip-->" << node[id].ip << "\t" << strlen(node[id].ip);
 		cout << "\nHostIP--->" << hostIP << "\t" << strlen(hostIP);	
-	//	cout << ""
+	
 		if(strncmp(node[id].ip,hostIP,16)==0)
               {
-		cout << "Inside the if condition"; 
+		  cout << "Inside the if condition\n"; 
                   node[id].cost = 0;
                   hostId = id;
-                  hostPort = atoi(initLine[2].c_str());
-                  
+                  hostPort = atoi(initLine[2].c_str()); 
+                  cout << "cost-"<< node[id].cost << endl;
               }
               node[id].portNo = atoi(initLine[2].c_str());
       
@@ -323,12 +394,12 @@ void initialize(char initFile[256])
              
              //int id;
              char *str1=(char *)STRING.c_str();
-              result = strtok(str1, delims);
+             result = strtok(str1, delims);
 
               while( result != NULL ) 
               {
                   initLine.push_back(result);
-                   result = strtok( NULL, delims );             
+                  result = strtok( NULL, delims );             
               }
               
               initLine_itr = initLine.begin();
@@ -346,6 +417,7 @@ void initialize(char initFile[256])
         cout << "\nhostIP" << hostIP;
         cout << "\nhostPort" << hostPort;
         cout << "\nCurrent neighbors" << endl;
+	cout << "\nHostID-" << hostId << endl;
         for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end();currentNeighbors_itr++)
         {
             cout << *currentNeighbors_itr << "\t" ;
@@ -367,18 +439,13 @@ void start_shell()
 	for(;;)
 	{
 		check_on_stdin();
-		//check_on_udp_main_server();
-		
-		
-		
 	}
 }
 
 
 void start_udp_server()
 {
-   int sock;
-       // int addr_len;
+        int sock;
         
         struct sockaddr_in server_addr ;
 
@@ -402,8 +469,6 @@ void start_udp_server()
             exit(1);
         }
 
-        //addr_len = sizeof(struct sockaddr);
-//		
 	cout << "\nUDPServer Waiting for client on port" << hostPort;
         fflush(stdout);
         
@@ -411,7 +476,6 @@ void start_udp_server()
 
 }
 
-//int count= 0;
 
 void check_on_stdin()
 {
@@ -507,39 +571,7 @@ void find_ip_of_current_Server()
 
 int main(int argc, char** argv)
 {
-    
-    char option; 
-    char *topologyFileName = NULL;
-    
-    char fileName[512];
-   
-    
-//    while ((option = getopt(argc, argv, "t::i::")) != -1)
-//    {
-//        switch(option)
-//        {
-//            case 'i' : routingUpdateInterval = optarg;
-//            break;
-//            case 't' : topologyFileName = optarg;
-//            break;
-//        }
-//    }
-    
-    
-   // strcpy(fileName,topologyFileName);
-    
     initialize();
-   // strcpy(hostIP,"128.205.36.8");
     start_shell ();
-    
-   // find_ip_of_current_Server();
-    
-
-    
-   // initialize(fileName);
-    
-	
-	
-        
-        return 0;
+    return 0;
 }
