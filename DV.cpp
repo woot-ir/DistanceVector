@@ -100,8 +100,10 @@ struct pcmds cmds[] = {
 
 struct NODE node[6];
 struct RECEIVESTRUCTURE receivingStructure[6];
-vector<int> currentNeighbors;
-vector<int>::iterator currentNeighbors_itr;
+//vector<int> currentNeighbors;
+//vector<int>::iterator currentNeighbors_itr;
+map <int,int> currentNeighbors;
+map <int,int>::iterator currentNeighborsItr;
 char hostIP[INET6_ADDRSTRLEN];
 short int hostPort;
 short int hostId;
@@ -119,20 +121,21 @@ socklen_t addr_len;
 char recv_data[MAXSIZE];
 char receivedIP[INET6_ADDRSTRLEN];
 short int numberofServersFollowing;
+int noOfUpdatePackets = 0;
 
 
 void sendUpdateMessageToNeighbors()
 {
     
     
-    for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end(); currentNeighbors_itr++)
+    for(currentNeighborsItr = currentNeighbors.begin();currentNeighborsItr != currentNeighbors.end(); currentNeighborsItr++)
     {
         
-        if(node[*currentNeighbors_itr].cost != 32767)
+        if(node[(*currentNeighborsItr).first].cost != 32767)
         {
                 struct sockaddr_in server_addr;
                 struct hostent *host;
-                host= (struct hostent *) gethostbyname((char *)node[*currentNeighbors_itr].ip);
+                host= (struct hostent *) gethostbyname((char *)node[(*currentNeighborsItr).first].ip);
                 int sock;
         
                 if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
@@ -142,7 +145,7 @@ void sendUpdateMessageToNeighbors()
                 }
             
                 server_addr.sin_family = AF_INET;
-                server_addr.sin_port = htons(node[*currentNeighbors_itr].portNo);
+                server_addr.sin_port = htons(node[(*currentNeighborsItr).first].portNo);
                 server_addr.sin_addr = *((struct in_addr *)host->h_addr);
                 bzero(&(server_addr.sin_zero),8);
                // printf("strlen %d \n ",strlen(updateMessage));
@@ -212,29 +215,44 @@ void update()
     if(tokenize_count == 4 && serverFlag)
     {
         char tempId[1];
-        char noOfFields[2];
-        char hostPort[2];
-        
+        bool isNeighbor = false;
         int n;
+        
         n = sprintf (tempId,"%d",hostId);
         if(strncmp(tokens[1], tempId,1) == 0)
         {
+            for(currentNeighborsItr = currentNeighbors.begin();currentNeighborsItr != currentNeighbors.end();currentNeighborsItr++)
+            {
+                if((*currentNeighborsItr).first == atoi(tokens[2]))
+                {
+                    isNeighbor = true;
+                    break;
+                }
+            }
+            if(isNeighbor)
+            {
             // update the local structure eg : - update 1 2 8 in server 1 
-            if(strcmp(tokens[3],"inf") == 0)
-            {
-                node[atoi(tokens[2])].cost = 32767;
-            }
-            else
-            {
-                node[atoi(tokens[2])].cost = atoi(tokens[3]);
-            }
+                if(strcmp(tokens[3],"inf") == 0)
+                {
+                        node[atoi(tokens[2])].cost = 32767;
+                }
+                else
+                {
+                        node[atoi(tokens[2])].cost = atoi(tokens[3]);
+                }
            // create a string according to the msg format
           //  createUpdateMessage();
            // send the string to the neighbors if the link is not equal to infinity
            // sendUpdateMessageToNeighbors();
-           
-            cout << "Update success";
+                cout << "Update success";
 		fflush(stdout);
+            }
+            else
+            {
+                cout << "Not a neighbor so cannot update the cost" << endl;
+                fflush(stdout);
+            }
+            
             
         }
         else
@@ -254,11 +272,33 @@ void update()
 }
 void step()
 {
-    
+    if(serverFlag && (tokenize_count == 1))
+    {
+        createUpdateMessage();
+        sendUpdateMessageToNeighbors();
+    }
+    else
+    {
+        cout << "The update command is not correct or server command is not executed\n";
+        fflush(stdout);
+	return;
+    }
 }
 void packets()
 {
-    
+    if(serverFlag && (tokenize_count == 1))
+    {
+        cout << "The number of Update Packets received since the last invocation is" << noOfUpdatePackets << endl;
+        noOfUpdatePackets = 0;
+        return;
+    }
+    else
+    {
+        cout << "The update command is not correct or server command is not executed\n";
+        fflush(stdout);
+	return;
+        
+    }
 }
 void display()
 {
@@ -266,11 +306,17 @@ void display()
 }
 void disable()
 {
+    /*
+     * check if the input given is a neighbor if so follow the next step
+        node[id].cost set to infinity and we have to erase the id from the map
+     * 
+     * What happens if I disable 2 at server 1 and a message comes from server 2 to server 1
+     */
     
 }
 void crash ()
 {
-    
+    exit(0);
 }
 
 
@@ -442,7 +488,7 @@ void initialize(char initFile[256])
               initLine_itr = initLine.begin();
               initLine_itr++;
               id=atoi(initLine[1].c_str());
-              currentNeighbors.push_back(id);
+              currentNeighbors.insert(pair<int,int>(id,3));
               node[id].cost = atoi(initLine[2].c_str());
         }
         
@@ -618,6 +664,7 @@ void DistanceVector()
         {
             node[i].cost = (cost + receivingStructure[i].cost);
             sendFlag = true;
+            node[i].nextHopId = id;
         }
     }
     
@@ -674,11 +721,16 @@ void check_on_stdin()
               struct sockaddr_in client_addr;
               bytes_read = recvfrom(serverListner,recv_data,1024,0,(struct sockaddr *)&client_addr, &addr_len);
               recv_data[bytes_read] = '\0';
-              
+              noOfUpdatePackets++;
               createReceiveStructures();
           
-              DistanceVector();
-              
+              DistanceVector();  
+          }
+          else if(serverFlag)
+          {
+              //map alli decrement the value if value is equal to zero then set the cost to inf
+              // create update message
+              //send to neighbors
               
           }
 	
