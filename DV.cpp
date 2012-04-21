@@ -4,7 +4,7 @@
  */
 
 #include <iostream>
-#include <string>
+#include <string.h>
 #include <map>
 #include <stdlib.h>
 #include <fstream>
@@ -25,7 +25,7 @@ using namespace  std;
 
 #define MAXCMD 7
 
-#define MAXSIZE 544
+#define MAXSIZE 1024
 
 
 
@@ -47,6 +47,7 @@ void initialize(char );
 void initialize();
 void createUpdateMessage();
 void sendUpdateMessageToNeighbors();
+void createReceiveStructures();
 
 void tokenize(char *);
 int docmd(char *);
@@ -104,6 +105,8 @@ bool serverFlag = false;
 int serverListner;
 int count1= 0;
 char updateMessage[MAXSIZE];
+socklen_t addr_len;
+char recv_data[MAXSIZE];
 
 
 void sendUpdateMessageToNeighbors()
@@ -117,7 +120,7 @@ void sendUpdateMessageToNeighbors()
         {
                 struct sockaddr_in server_addr;
                 struct hostent *host;
-              //  host= (struct hostent *) gethostbyname((char *)node[*currentNeighbors_itr].ip);
+                host= (struct hostent *) gethostbyname((char *)node[*currentNeighbors_itr].ip);
                 int sock;
         
                 if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
@@ -128,10 +131,10 @@ void sendUpdateMessageToNeighbors()
             
                 server_addr.sin_family = AF_INET;
                 server_addr.sin_port = htons(node[*currentNeighbors_itr].portNo);
-                server_addr.sin_addr =  inet_addr(node[*currentNeighbors_itr].ip);                                         //*((struct in_addr *)host->h_addr);
+                server_addr.sin_addr = *((struct in_addr *)host->h_addr);
                 bzero(&(server_addr.sin_zero),8);
-                
-                sendto(sock, updateMessage, strlen(updateMessage), 0,(struct sockaddr *)&server_addr, sizeof(struct sockaddr));
+                printf("strlen %d \n ",strlen(updateMessage));
+                sendto(sock, updateMessage, 1024, 0,(struct sockaddr *)&server_addr, sizeof(struct sockaddr));
             
         }
     }
@@ -145,20 +148,36 @@ void createUpdateMessage()
     
     short int zero = 0;
     unsigned int tempSourceIP = inet_addr(hostIP);
+    int pos=0;
     memset(updateMessage,'\0',MAXSIZE);
     
-    memcpy(updateMessage,&numberOfServers,2);
-    memcpy(updateMessage+2,&hostPort,2);
-    memcpy(updateMessage+2,&tempSourceIP,4);
-    for(int i = 1;i < numberOfServers;i++)
+    memcpy(updateMessage+pos,&numberOfServers,sizeof(short int));  //0
+    cout << "Copying no of servers-" <<  numberOfServers;
+    pos+=sizeof(short int);
+    cout << pos << endl;
+    memcpy(updateMessage+pos,&hostPort,sizeof(short int));   //2
+    cout << "Copying host port" << hostPort;
+    pos+=sizeof(short int);
+    cout << pos << endl;
+    memcpy(updateMessage+pos,&tempSourceIP,sizeof(unsigned int)); //4
+    pos+=sizeof(unsigned int);
+    cout << tempSourceIP << endl;
+   /* for(int i = 1;i < numberOfServers;i++)
     {
         unsigned int tempSourceIP1 = inet_addr(node[i].ip);
-        memcpy(updateMessage+4,&tempSourceIP1,4);
-        memcpy(updateMessage+4,&node[i].portNo,2);
-        memcpy(updateMessage+2,&zero,2);
-        memcpy(updateMessage+2,&node[i].id,2);
-        memcpy(updateMessage+2,&node[i].cost,2);
-    }
+        memcpy(updateMessage+pos,&tempSourceIP1,sizeof(unsigned int)); //8
+        pos+=sizeof(unsigned int);
+        memcpy(updateMessage+pos,&node[i].portNo,sizeof(short int)); //12
+        pos+=sizeof(short int);
+        memcpy(updateMessage+pos,&zero,sizeof(short int));  //14
+        pos+=sizeof(short int);
+        memcpy(updateMessage+pos,&node[i].id,sizeof(short int));  //16
+        pos+=sizeof(short int);
+        memcpy(updateMessage+pos,&node[i].cost,sizeof(short int)); //18
+        pos+=sizeof(short int);
+    }*/
+    
+    printf("message -->%d",strlen(updateMessage));//-" << updateMessage << endl ;
 
 }
 
@@ -288,10 +307,6 @@ void tokenize(char *cmdline)
 				j++;
                                 tokenize_count++;
 			}
-                        /*for(i=0;i<3;i++)
-                        {
-                            printf("%s\n",tokens[i]);
-                        }*/
                         
                       
 }
@@ -409,21 +424,21 @@ void initialize(char initFile[256])
               node[id].cost = atoi(initLine[2].c_str());
         }
         
-        for(int i=1;i<6;i++)
-        {
-            cout << node[i].id << "\t" << node[i].ip << "\t" << node[i].portNo << "\t"<< node[i].cost << endl;
-        }
-	initializationFile.close();
-        cout << "\nhostIP" << hostIP;
-        cout << "\nhostPort" << hostPort;
-        cout << "\nCurrent neighbors" << endl;
-	cout << "\nHostID-" << hostId << endl;
-        for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end();currentNeighbors_itr++)
-        {
-            cout << *currentNeighbors_itr << "\t" ;
-            fflush(stdin);
-        }
-    
+//        for(int i=1;i<6;i++)
+//        {
+//            cout << node[i].id << "\t" << node[i].ip << "\t" << node[i].portNo << "\t"<< node[i].cost << endl;
+//        }
+//	initializationFile.close();
+//        cout << "\nhostIP" << hostIP;
+//        cout << "\nhostPort" << hostPort;
+//        cout << "\nCurrent neighbors" << endl;
+//	cout << "\nHostID-" << hostId << endl;
+//        for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end();currentNeighbors_itr++)
+//        {
+//            cout << *currentNeighbors_itr << "\t" ;
+//            fflush(stdin);
+//        }
+//    
 }
 
 
@@ -468,6 +483,8 @@ void start_udp_server()
             perror("Bind");
             exit(1);
         }
+        
+        addr_len = sizeof(struct sockaddr);
 
 	cout << "\nUDPServer Waiting for client on port" << hostPort;
         fflush(stdout);
@@ -476,6 +493,28 @@ void start_udp_server()
 
 }
 
+void createReceiveStructures()
+{
+    short int numberofServersFollowing;
+    short int receivedFromServerPortNo;
+    int posToRead = 0;
+    char receivedIP[INET6_ADDRSTRLEN];
+    struct in_addr temp_in;
+    char *tempIP;
+     
+    memcpy(&numberofServersFollowing,recv_data+posToRead,sizeof(short int) );
+    posToRead+=sizeof(short int);
+    memcpy(&receivedFromServerPortNo,recv_data+posToRead,sizeof(short int) );
+    posToRead+=sizeof(short int);
+    memcpy(&(temp_in.s_addr),recv_data+posToRead,sizeof(unsigned int));
+    posToRead+=sizeof(unsigned int);  
+    tempIP = inet_ntoa(temp_in);
+    strcpy(receivedIP,tempIP);             
+    cout << "numberofServers" << numberofServersFollowing << endl;
+    cout << "receivedServerPortNo" << receivedFromServerPortNo << endl;
+    cout << "Received Server Ip" << receivedIP << endl;        
+    //exit(0);
+}
 
 void check_on_stdin()
 {
@@ -514,7 +553,18 @@ void check_on_stdin()
 	    }
           else if(FD_ISSET(serverListner,&readfds))
           {
-              cout << "Receiving some information on the server";
+//    number of servers(2) + Host server port(2) +Host serverIP(4)
+//                                +
+//   ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
+             // cout << "Receiving some information on the server";
+              int bytes_read =0;
+              
+              struct sockaddr_in client_addr;
+              bytes_read = recvfrom(serverListner,recv_data,1024,0,(struct sockaddr *)&client_addr, &addr_len);
+              recv_data[bytes_read] = '\0';
+              
+              createReceiveStructures();
+              
           }
 	
 }
