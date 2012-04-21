@@ -48,6 +48,7 @@ void initialize();
 void createUpdateMessage();
 void sendUpdateMessageToNeighbors();
 void createReceiveStructures();
+void DistanceVector();
 
 void tokenize(char *);
 int docmd(char *);
@@ -62,6 +63,15 @@ struct NODE{
     char ip[INET6_ADDRSTRLEN];
     short int cost;
     short int nextHopId;
+};
+
+struct RECEIVESTRUCTURE{
+    short int id;
+    short int portNo;
+    char ip[INET6_ADDRSTRLEN];
+    short int cost;
+    short int nextHopId;
+    short int dummy;
 };
 
 
@@ -89,7 +99,7 @@ struct pcmds cmds[] = {
 
 
 struct NODE node[6];
-struct NODE receivingStructure[6];
+struct RECEIVESTRUCTURE receivingStructure[6];
 vector<int> currentNeighbors;
 vector<int>::iterator currentNeighbors_itr;
 char hostIP[INET6_ADDRSTRLEN];
@@ -107,6 +117,8 @@ int count1= 0;
 char updateMessage[MAXSIZE];
 socklen_t addr_len;
 char recv_data[MAXSIZE];
+char receivedIP[INET6_ADDRSTRLEN];
+short int numberofServersFollowing;
 
 
 void sendUpdateMessageToNeighbors()
@@ -133,7 +145,7 @@ void sendUpdateMessageToNeighbors()
                 server_addr.sin_port = htons(node[*currentNeighbors_itr].portNo);
                 server_addr.sin_addr = *((struct in_addr *)host->h_addr);
                 bzero(&(server_addr.sin_zero),8);
-                printf("strlen %d \n ",strlen(updateMessage));
+               // printf("strlen %d \n ",strlen(updateMessage));
                 sendto(sock, updateMessage, 1024, 0,(struct sockaddr *)&server_addr, sizeof(struct sockaddr));
             
         }
@@ -152,17 +164,17 @@ void createUpdateMessage()
     memset(updateMessage,'\0',MAXSIZE);
     
     memcpy(updateMessage+pos,&numberOfServers,sizeof(short int));  //0
-    cout << "Copying no of servers-" <<  numberOfServers;
+   // cout << "Copying no of servers-" <<  numberOfServers;
     pos+=sizeof(short int);
-    cout << pos << endl;
+   // cout << pos << endl;
     memcpy(updateMessage+pos,&hostPort,sizeof(short int));   //2
-    cout << "Copying host port" << hostPort;
+   // cout << "Copying host port" << hostPort;
     pos+=sizeof(short int);
-    cout << pos << endl;
+    //cout << pos << endl;
     memcpy(updateMessage+pos,&tempSourceIP,sizeof(unsigned int)); //4
     pos+=sizeof(unsigned int);
-    cout << tempSourceIP << endl;
-   /* for(int i = 1;i < numberOfServers;i++)
+    //cout << tempSourceIP << endl;
+    for(int i = 1;i < numberOfServers;i++)
     {
         unsigned int tempSourceIP1 = inet_addr(node[i].ip);
         memcpy(updateMessage+pos,&tempSourceIP1,sizeof(unsigned int)); //8
@@ -175,18 +187,28 @@ void createUpdateMessage()
         pos+=sizeof(short int);
         memcpy(updateMessage+pos,&node[i].cost,sizeof(short int)); //18
         pos+=sizeof(short int);
-    }*/
+    }
     
-    printf("message -->%d",strlen(updateMessage));//-" << updateMessage << endl ;
+   // printf("message -->%d",strlen(updateMessage));//-" << updateMessage << endl ;
 
 }
 
+/**
+ * 
+ * 
+ * 
+ * Have to check whether there exist a link btw the current server and the specified server
+ * 
+ * 
+ * 
+ * 
+ */
 void update()
 {
     // check if the update command is correct
     // check if the update is for the server ie display a message if the command says update 2 3 7
     
-    // 
+    
     if(tokenize_count == 4 && serverFlag)
     {
         char tempId[1];
@@ -207,9 +229,9 @@ void update()
                 node[atoi(tokens[2])].cost = atoi(tokens[3]);
             }
            // create a string according to the msg format
-            createUpdateMessage();
+          //  createUpdateMessage();
            // send the string to the neighbors if the link is not equal to infinity
-            sendUpdateMessageToNeighbors();
+           // sendUpdateMessageToNeighbors();
            
             cout << "Update success";
 		fflush(stdout);
@@ -353,7 +375,7 @@ void initialize(char initFile[256])
         
         /**
          *  Populate structures
-         * Extract the neighbors (2 field) and store in an array
+         *  Extract the neighbors (2 field) and store in an array
          * 
          */
         char delims[] = " ";
@@ -493,12 +515,16 @@ void start_udp_server()
 
 }
 
+
+//    number of servers(2) + Host server port(2) +Host serverIP(4)
+//                                +
+//   ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
 void createReceiveStructures()
 {
-    short int numberofServersFollowing;
+    
     short int receivedFromServerPortNo;
     int posToRead = 0;
-    char receivedIP[INET6_ADDRSTRLEN];
+    
     struct in_addr temp_in;
     char *tempIP;
      
@@ -509,13 +535,101 @@ void createReceiveStructures()
     memcpy(&(temp_in.s_addr),recv_data+posToRead,sizeof(unsigned int));
     posToRead+=sizeof(unsigned int);  
     tempIP = inet_ntoa(temp_in);
-    strcpy(receivedIP,tempIP);             
+    strcpy(receivedIP,tempIP);        
+    
+    for(int i = 1;i < numberofServersFollowing;i++)
+    {
+        char *tempIP1;
+        struct in_addr temp_in1;
+        
+        memcpy(&(temp_in1.s_addr),recv_data+posToRead,sizeof(unsigned int));
+        tempIP1 = inet_ntoa(temp_in1);
+        strcpy(receivingStructure[i].ip,tempIP1);      
+        posToRead+=sizeof(unsigned int);
+        
+        memcpy(&receivingStructure[i].portNo,recv_data+posToRead,sizeof(short int));
+        posToRead+=sizeof(short int);
+        
+        memcpy(&receivingStructure[i].dummy,recv_data+posToRead,sizeof(short int));
+        posToRead+=sizeof(short int);
+        
+        memcpy(&receivingStructure[i].id,recv_data+posToRead,sizeof(short int));
+        posToRead+=sizeof(short int);
+        
+        memcpy(&receivingStructure[i].cost,recv_data+posToRead,sizeof(short int));
+        posToRead+=sizeof(short int);
+    }
     cout << "numberofServers" << numberofServersFollowing << endl;
     cout << "receivedServerPortNo" << receivedFromServerPortNo << endl;
     cout << "Received Server Ip" << receivedIP << endl;        
+    
+    for(int i = 1;i < numberofServersFollowing;i++)
+    {
+        cout << receivingStructure[i].ip << endl;
+        cout << receivingStructure[i].portNo << endl;
+        cout << receivingStructure[i].dummy << endl;
+        cout << receivingStructure[i].id << endl;
+        cout << receivingStructure[i].cost << endl;
+        cout << "-----------------------------------------------------" << endl;
+    }
     //exit(0);
 }
 
+             
+
+
+               /* get the server ID from the incoming server IP
+               * get cost = node[id].cost
+               * 
+               * for(i=1 to number of servers)
+               * {
+               *        if(cost + receivedStructure[i].cost) < node[i].cost
+               *        update the node[i].cost
+               *        set boolean sendflag to true
+               * 
+               * }
+               * 
+               * if(sendFlag)
+               * {
+               *        Send it to neighbors
+               * }
+               *
+               */
+void DistanceVector()
+{
+    short int id;
+    short int cost;
+    bool sendFlag = false;
+    
+    for(int i = 1;i < numberOfServers;i++)
+    {
+        if(strcmp(receivedIP,node[i].ip)==0)
+        {
+           id = node[i].id; 
+           cout << "Assigned the id to the id variable" << endl;
+        }
+    }
+    
+    cost = node[id].cost;
+    
+    for(int i = 1;i < numberofServersFollowing;i++ )
+    {
+        if((cost + receivingStructure[i].cost) < node[i].cost)
+        {
+            node[i].cost = (cost + receivingStructure[i].cost);
+            sendFlag = true;
+        }
+    }
+    
+    if(sendFlag)
+    {
+        createUpdateMessage();
+        sendUpdateMessageToNeighbors();
+    }
+    
+    
+    
+}
 void check_on_stdin()
 {
 
@@ -553,9 +667,7 @@ void check_on_stdin()
 	    }
           else if(FD_ISSET(serverListner,&readfds))
           {
-//    number of servers(2) + Host server port(2) +Host serverIP(4)
-//                                +
-//   ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
+
              // cout << "Receiving some information on the server";
               int bytes_read =0;
               
@@ -564,6 +676,9 @@ void check_on_stdin()
               recv_data[bytes_read] = '\0';
               
               createReceiveStructures();
+          
+              DistanceVector();
+              
               
           }
 	
