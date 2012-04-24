@@ -58,7 +58,10 @@ int docmd(char *);
 
 
 
-
+/*
+ * This is the structure which maintains the information about a node. 
+ * Data read from the init file initially will be stored in this structure
+ */
 
 struct NODE{
     short int id;
@@ -68,6 +71,11 @@ struct NODE{
     short int nextHopId;
 };
 
+
+/*
+ *This is the structure which maintains the information about the servers and other fields extracting information from the 
+ * update message 
+ */
 struct RECEIVESTRUCTURE{
     short int id;
     short int portNo;
@@ -125,8 +133,13 @@ char recv_data[MAXSIZE];
 char receivedIP[INET6_ADDRSTRLEN];
 short int numberofServersFollowing;
 int noOfUpdatePackets = 0;
+struct timeval tv; 
+fd_set readfds;
 
-
+/**
+ * This is the function which performs the function of sending the update message to the neighbors
+ * This takes care of not sending the update message if the cost of the link is infinity
+ */
 void sendUpdateMessageToNeighbors()
 {
     
@@ -158,10 +171,14 @@ void sendUpdateMessageToNeighbors()
     }
     
 }
-//    number of servers(2) + Host server port(2) +Host serverIP(4)
-//                                +
-//   ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
-void createUpdateMessage()
+/*    
+ * number of servers(2) + Host server port(2) +Host serverIP(4)                                
+                     +
+   ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
+ * 
+ * The above mentioned fields will be mem copied into a char[] and this is sent to the neighbors
+*/
+ void createUpdateMessage()
 {
     
     short int zero = 0;
@@ -199,14 +216,12 @@ void createUpdateMessage()
 
 }
 
-/**
- * 
- * 
- * 
- * Have to check whether there exist a link btw the current server and the specified server
- * 
- * 
- * 
+/*
+ * This is the function which will be called when the user wishes to update the link cost
+ * This method takes care of checking the no of parameters , whether the user can update a link , whether a node is the 
+ * neighbor of the current node. 
+ * If the update is successful the link cost is updated and this information is sent to the neighbors in the next periodic update 
+ * or when the user issues the command "Step"
  * 
  */
 void update()
@@ -249,11 +264,13 @@ void update()
            // sendUpdateMessageToNeighbors();
                 cout << "Update success";
 		fflush(stdout);
+                return;
             }
             else
             {
                 cout << "Not a neighbor so cannot update the cost" << endl;
                 fflush(stdout);
+                return;
             }
             
             
@@ -262,6 +279,7 @@ void update()
         {
             cout << "You are updating distance at the wrong server";
 		fflush(stdout);
+                return;
         }
         
     }
@@ -273,6 +291,11 @@ void update()
     }
     
 }
+
+/**
+ * This the function which is called when the user wishes to send the update message to the neighbors.
+ * 
+ */
 void step()
 {
     if(serverFlag && (tokenize_count == 1))
@@ -287,6 +310,10 @@ void step()
 	return;
     }
 }
+/*
+ * This is the function which is called when the user wishes to know the number of
+ * packets the server received since the last invocation 
+ */
 void packets()
 {
     if(serverFlag && (tokenize_count == 1))
@@ -303,15 +330,18 @@ void packets()
         
     }
 }
+
+/**
+ * This is the function which is called when the user issues the command to display the current
+ * Nodes routing server.
+ * The output will be show in the following order 
+ * <destination-server-ID> <next-hop-server-ID> <cost-of-path>
+ */
 void display()
 {
-    /**
-     *  Complete this. Have to discuss what has to be included
-     * <destination-server-ID> <next-hop-server-ID> <cost-of-path>
-
-     *  
-     */
-    cout << "<destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost-of-path>" ;
+    if(tokenize_count == 1 && serverFlag)
+    {
+        cout << "<destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost-of-path>" ;
         for(int i =1 ;i < 6;i++)
         {
             if(node[i].cost == 0)
@@ -327,7 +357,11 @@ void display()
                 cout << node[i].id << "\t" << node[i].nextHopId << "\t" << node[i].cost << endl;
             }
         }
-    
+    }
+    else
+    {
+        cout << "Command issued is not correct or the server is not started" << endl;
+    }
 }
 
 
@@ -345,34 +379,59 @@ void display()
 void disable()
 {
    
-    map <int,int>::iterator tempCurrentNeighborsItr;
-    if(tokenize_count == 2)
+    if(tokenize_count == 1 && serverFlag)
     {
-       tempCurrentNeighborsItr = currentNeighbors.find(atoi(tokens[2]));
-       if(tempCurrentNeighborsItr == currentNeighbors.end())
-       {
-           cout << "Disabled failed since the node you entered is not the current node's neighbor";
-       }
-       else
-       {
-           int tempID = tempCurrentNeighborsItr->first;
-           node[tempID].cost = INF;
-           currentNeighbors.erase(tempCurrentNeighborsItr);
-       }
+        map <int,int>::iterator tempCurrentNeighborsItr;
+        if(tokenize_count == 2 && serverFlag)
+        {
+                tempCurrentNeighborsItr = currentNeighbors.find(atoi(tokens[2]));
+                if(tempCurrentNeighborsItr == currentNeighbors.end())
+                {
+                        cout << "Disabled failed since the node you entered is not the current node's neighbor";
+                }
+                else
+                {
+                        int tempID = tempCurrentNeighborsItr->first;
+                        node[tempID].cost = INF;
+                        currentNeighbors.erase(tempCurrentNeighborsItr);
+                }
+        
+        }
+        else
+        {
+                cout << "Disable command not executed in a proper way" << endl;
+                fflush(stdout);
+                return;
+        }
         
     }
     else
     {
-        cout << "Disable command not executed in a proper way" << endl;
+        cout << "Command not issued properly or the server is not started" << endl;
         fflush(stdout);
         return;
     }
-        
-            
 }
 void crash ()
 {
-    exit(0);
+   // exit(0);
+    
+    if(tokenize_count == 1 && serverFlag)
+    {
+        serverFlag = false;
+        map<int,int>::iterator neighborMapItr;
+        neighborMapItr = currentNeighbors.begin();
+        currentNeighbors.erase(neighborMapItr,currentNeighbors.end());
+        
+        FD_CLR(serverListner,readfds);
+        serverListner = 0;
+    }
+    else
+    {
+        cout << "Command not issued properly or the server is not started" << endl;
+        fflush(stdout);
+        return;
+    }
 }
 
 
@@ -438,7 +497,7 @@ void tokenize(char *cmdline)
 
 
 /**
- * 
+ *  This is the function which is called to initialize the local structures on server start up
  */
 void initialize()
 {
@@ -564,10 +623,13 @@ void initialize(char initFile[256])
 //            fflush(stdin);
 //        }
 //    
+        
+              tv.tv_sec = interval;
+              tv.tv_usec = 0;
 }
 
 
-/**
+/*
  * This is the function which is called from the main function. This starts 
  * the tcp server and it loops continuously over th stdin , tcp-main-server, 
  * connection fd's
@@ -661,7 +723,7 @@ void createReceiveStructures()
     
     map <int,int>::iterator tempCurrentNeighborsItr;
     
-    tempCurrentNeighborsItr = currentNeighbors.find(tempIP);
+    tempCurrentNeighborsItr = currentNeighbors.find(tempId);
     /*
      * If the tempCurrentNeighborItr returns a value other than map::end()
      * Then set its count field to 3
@@ -778,8 +840,8 @@ void DistanceVector()
 void check_on_stdin()
 {
 
-	fd_set readfds;
-	struct timeval tv; 
+	
+	
 	char cmdline[256];
         int n =0;
         if(count1 == 0)
@@ -792,8 +854,7 @@ void check_on_stdin()
                 FD_SET(0,&readfds);
         }       
         n = serverListner + 1;
-	tv.tv_sec = interval;
-	tv.tv_usec = 0;
+	
 
         if((select(n,&readfds,NULL, NULL, &tv)) == -1)
 	    {
@@ -852,6 +913,9 @@ void check_on_stdin()
                                     }
                                 }
                      }
+              
+              tv.tv_sec = interval;
+              tv.tv_usec = 0;
         
           }
 	
