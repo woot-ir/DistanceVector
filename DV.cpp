@@ -27,6 +27,8 @@ using namespace  std;
 
 #define MAXSIZE 1024
 
+#define INF 30000
+
 
 
 void update(); 
@@ -49,6 +51,7 @@ void createUpdateMessage();
 void sendUpdateMessageToNeighbors();
 void createReceiveStructures();
 void DistanceVector();
+void addNewNode();
 
 void tokenize(char *);
 int docmd(char *);
@@ -110,7 +113,7 @@ short int hostId;
 char *tokens[MAXARG];
 int tokenize_count;
 char commandline_copy[256];
-int interval;
+int interval = 0;
 short int numberOfServers = 0;
 short int numberOfNeighbors = 0;
 bool serverFlag = false;
@@ -131,11 +134,11 @@ void sendUpdateMessageToNeighbors()
     for(currentNeighborsItr = currentNeighbors.begin();currentNeighborsItr != currentNeighbors.end(); currentNeighborsItr++)
     {
         
-        if(node[(*currentNeighborsItr).first].cost != 32767)
+        if(node[currentNeighborsItr->first].cost != INF)
         {
                 struct sockaddr_in server_addr;
                 struct hostent *host;
-                host= (struct hostent *) gethostbyname((char *)node[(*currentNeighborsItr).first].ip);
+                host= (struct hostent *) gethostbyname((char *)node[currentNeighborsItr->first].ip);
                 int sock;
         
                 if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
@@ -145,7 +148,7 @@ void sendUpdateMessageToNeighbors()
                 }
             
                 server_addr.sin_family = AF_INET;
-                server_addr.sin_port = htons(node[(*currentNeighborsItr).first].portNo);
+                server_addr.sin_port = htons(node[currentNeighborsItr->first].portNo);
                 server_addr.sin_addr = *((struct in_addr *)host->h_addr);
                 bzero(&(server_addr.sin_zero),8);
                // printf("strlen %d \n ",strlen(updateMessage));
@@ -223,7 +226,7 @@ void update()
         {
             for(currentNeighborsItr = currentNeighbors.begin();currentNeighborsItr != currentNeighbors.end();currentNeighborsItr++)
             {
-                if((*currentNeighborsItr).first == atoi(tokens[2]))
+                if(currentNeighborsItr->first == atoi(tokens[2]))
                 {
                     isNeighbor = true;
                     break;
@@ -234,7 +237,7 @@ void update()
             // update the local structure eg : - update 1 2 8 in server 1 
                 if(strcmp(tokens[3],"inf") == 0)
                 {
-                        node[atoi(tokens[2])].cost = 32767;
+                        node[atoi(tokens[2])].cost = INF;
                 }
                 else
                 {
@@ -302,17 +305,70 @@ void packets()
 }
 void display()
 {
+    /**
+     *  Complete this. Have to discuss what has to be included
+     * <destination-server-ID> <next-hop-server-ID> <cost-of-path>
+
+     *  
+     */
+    cout << "<destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost-of-path>" ;
+        for(int i =1 ;i < 6;i++)
+        {
+            if(node[i].cost == 0)
+            {
+                cout << node[i].id << "\t" << node[i].id << "\t" << node[i].cost << endl;
+            }
+            else if(node[i].cost == INF)
+            {
+                cout << node[i].id << "\t" << " " << "\t" << "INF" << endl;
+            }
+            else
+            {
+                cout << node[i].id << "\t" << node[i].nextHopId << "\t" << node[i].cost << endl;
+            }
+        }
     
 }
-void disable()
-{
-    /*
+
+
+ /*
      * check if the input given is a neighbor if so follow the next step
         node[id].cost set to infinity and we have to erase the id from the map
      * 
      * What happens if I disable 2 at server 1 and a message comes from server 2 to server 1
+     * 
+     * How to handle incoming new servers ? yes
+     * 
+     * Adding new neighbors ?
      */
     
+void disable()
+{
+   
+    map <int,int>::iterator tempCurrentNeighborsItr;
+    if(tokenize_count == 2)
+    {
+       tempCurrentNeighborsItr = currentNeighbors.find(atoi(tokens[2]));
+       if(tempCurrentNeighborsItr == currentNeighbors.end())
+       {
+           cout << "Disabled failed since the node you entered is not the current node's neighbor";
+       }
+       else
+       {
+           int tempID = tempCurrentNeighborsItr->first;
+           node[tempID].cost = INF;
+           currentNeighbors.erase(tempCurrentNeighborsItr);
+       }
+        
+    }
+    else
+    {
+        cout << "Disable command not executed in a proper way" << endl;
+        fflush(stdout);
+        return;
+    }
+        
+            
 }
 void crash ()
 {
@@ -325,6 +381,7 @@ void crash ()
  * input give by the user
  * @param cmdline
  * @return 
+ * 
  */
 int docmd(char *cmdline)
 {
@@ -387,11 +444,11 @@ void initialize()
 {
     for(int i = 1;i < 6;i++)
     {
-        node[i].cost = 32767;
-        node[i].id = 32767;
+        node[i].cost = INF;
+        node[i].id = INF;
         strcpy(node[i].ip ," ");
-        node[i].nextHopId = 32767;
-        node[i].portNo = 32767;
+        node[i].nextHopId = INF;
+        node[i].portNo = INF;
     }
     
 }
@@ -561,6 +618,10 @@ void start_udp_server()
 
 }
 
+void addNewNode(int id)
+{
+    currentNeighbors.insert(pair<int,int>(id,3));
+}
 
 //    number of servers(2) + Host server port(2) +Host serverIP(4)
 //                                +
@@ -573,6 +634,7 @@ void createReceiveStructures()
     
     struct in_addr temp_in;
     char *tempIP;
+    int tempId = 0;
      
     memcpy(&numberofServersFollowing,recv_data+posToRead,sizeof(short int) );
     posToRead+=sizeof(short int);
@@ -582,6 +644,41 @@ void createReceiveStructures()
     posToRead+=sizeof(unsigned int);  
     tempIP = inet_ntoa(temp_in);
     strcpy(receivedIP,tempIP);        
+    
+    /*
+     This is to update the count field in the map to 3 . Index of the map has to be searched from the structure with the incoming IP. 
+     */
+    
+    for(int i = 1 ;i < 6;i++)
+    {
+        if(strcmp(node[i].ip,receivedIP) == 0)
+        {
+            tempId = node[i].id;
+            break;
+        }
+    }
+    
+    
+    map <int,int>::iterator tempCurrentNeighborsItr;
+    
+    tempCurrentNeighborsItr = currentNeighbors.find(tempIP);
+    /*
+     * If the tempCurrentNeighborItr returns a value other than map::end()
+     * Then set its count field to 3
+     * else
+     * this is a new node and it has to be handled
+     */
+    if(tempCurrentNeighborsItr != currentNeighbors.end())
+    {
+        tempCurrentNeighborsItr->second = 3;
+    }
+    else
+    {
+        addNewNode(tempId);
+    }
+    
+    
+    
     
     for(int i = 1;i < numberofServersFollowing;i++)
     {
@@ -649,10 +746,11 @@ void DistanceVector()
     
     for(int i = 1;i < numberOfServers;i++)
     {
-        if(strcmp(receivedIP,node[i].ip)==0)
+        if(strcmp(receivedIP,node[i].ip)== 0)
         {
            id = node[i].id; 
            cout << "Assigned the id to the id variable" << endl;
+           break;
         }
     }
     
@@ -694,8 +792,8 @@ void check_on_stdin()
                 FD_SET(0,&readfds);
         }       
         n = serverListner + 1;
-	tv.tv_sec=0;
-	tv.tv_usec=0;
+	tv.tv_sec = interval;
+	tv.tv_usec = 0;
 
         if((select(n,&readfds,NULL, NULL, &tv)) == -1)
 	    {
@@ -732,6 +830,29 @@ void check_on_stdin()
               // create update message
               //send to neighbors
               
+              
+              for(currentNeighborsItr = currentNeighbors.begin();currentNeighborsItr != currentNeighbors.end(); currentNeighborsItr++)
+                     {
+                                if(currentNeighborsItr->second == 0)
+                                {
+                                    continue;
+                                }
+                                else
+                                {
+                                    currentNeighborsItr->second -= 1;
+                                    if(currentNeighborsItr->second == 0)
+                                    {
+                                        node[currentNeighborsItr->first].cost = INF;
+                                        /*
+                                         SHOULD WE UPDATE NEIGHBORS ABOUT THIS CHANGE ? OR ONLY THROUGH PERIODIC UPDATE
+                                         * 
+                                         */
+                                      //  createUpdateMessage();
+                                       // sendUpdateMessageToNeighbors();
+                                    }
+                                }
+                     }
+        
           }
 	
 }
@@ -741,8 +862,9 @@ char *routingUpdateInterval = NULL;
 void server()
 {
     serverFlag = true;
-    if(tokenize_count == 5)
+    if(tokenize_count == 5 && (strcmp(tokens[1],"-t") == 0) && (strcmp(tokens[3],"-i") == 0))
     {
+        
         find_ip_of_current_Server();
     
         initialize(tokens[2]);
@@ -755,7 +877,7 @@ void server()
     }
     else
     {
-        cout << "Invalid number of arguments\n";
+        cout << "Invalid number of arguments or invalid options given\n";
         //fflush(stdout);
         return;
     }
