@@ -45,7 +45,7 @@ void start_shell();
 void check_on_stdin();
 void check_on_udp_main_server();
 void find_ip_of_current_Server();
-void initialize(char );
+int initialize(char );
 void initialize();
 void createUpdateMessage();
 void sendUpdateMessageToNeighbors();
@@ -115,6 +115,7 @@ struct RECEIVESTRUCTURE receivingStructure[6];
 //vector<int>::iterator currentNeighbors_itr;
 map <int,int> currentNeighbors;
 map <int,int>::iterator currentNeighborsItr;
+//char hostIP = (char *)malloc(16*sizeof(char));
 char hostIP[INET6_ADDRSTRLEN];
 short int hostPort;
 short int hostId;
@@ -197,7 +198,7 @@ void sendUpdateMessageToNeighbors()
     memcpy(updateMessage+pos,&tempSourceIP,sizeof(unsigned int)); //4
     pos+=sizeof(unsigned int);
     //cout << tempSourceIP << endl;
-    for(int i = 1;i < numberOfServers;i++)
+    for(int i = 1;i <= numberOfServers;i++)
     {
         unsigned int tempSourceIP1 = inet_addr(node[i].ip);
         memcpy(updateMessage+pos,&tempSourceIP1,sizeof(unsigned int)); //8
@@ -341,20 +342,20 @@ void display()
 {
     if(tokenize_count == 1 && serverFlag)
     {
-        cout << "<destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost-of-path>" ;
+        cout << "<destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost-of-path>" << endl;
         for(int i =1 ;i < 6;i++)
         {
             if(node[i].cost == 0)
             {
-                cout << node[i].id << "\t" << node[i].id << "\t" << node[i].cost << endl;
+                cout << node[i].id << "\t\t" << node[i].id << "\t\t" << node[i].cost << endl;
             }
             else if(node[i].cost == INF)
             {
-                cout << node[i].id << "\t" << " " << "\t" << "INF" << endl;
+                cout << node[i].id << "\t\t" << " " << "\t\t" << "INF" << endl;
             }
             else
             {
-                cout << node[i].id << "\t" << node[i].nextHopId << "\t" << node[i].cost << endl;
+                cout << node[i].id << "\t\t" << node[i].nextHopId << "\t\t" << node[i].cost << endl;
             }
         }
     }
@@ -423,7 +424,7 @@ void crash ()
         neighborMapItr = currentNeighbors.begin();
         currentNeighbors.erase(neighborMapItr,currentNeighbors.end());
         
-        FD_CLR(serverListner,readfds);
+        FD_CLR(serverListner,&readfds);
         serverListner = 0;
     }
     else
@@ -517,13 +518,22 @@ void initialize()
  * @param initFile
  * @return 
  */
-void initialize(char initFile[256])
+int initialize(char initFile[256])
 {
     ifstream initializationFile;
     
     string STRING;
     
     initializationFile.open(initFile, ifstream::in);
+    
+    if(initializationFile.fail())
+    {
+        cout << "File not found" << endl;
+        fflush(stdout);
+        return 1;
+    }
+    else
+    {
         
 	getline(initializationFile,STRING); // Saves the line in STRING.
         numberOfServers = atoi(STRING.c_str());
@@ -569,7 +579,7 @@ void initialize(char initFile[256])
               strcpy(node[id].ip,initLine[1].c_str());
 		
                cout << "\nnode[id].ip-->" << node[id].ip << "\t" << strlen(node[id].ip);
-		cout << "\nHostIP--->" << hostIP << "\t" << strlen(hostIP);	
+		//cout << "\nHostIP--->" << hostIP ;//<< "\t" << strlen(hostIP);	
 	
 		if(strncmp(node[id].ip,hostIP,16)==0)
               {
@@ -583,7 +593,7 @@ void initialize(char initFile[256])
       
         }
         
-        for(int i=0;i<numberOfNeighbors;i++)
+        for(int i = 0;i < numberOfNeighbors;i++)
         {
             getline(initializationFile,STRING);
             vector<string> initLine;
@@ -606,29 +616,15 @@ void initialize(char initFile[256])
               id=atoi(initLine[1].c_str());
               currentNeighbors.insert(pair<int,int>(id,3));
               node[id].cost = atoi(initLine[2].c_str());
-        }
-        
-//        for(int i=1;i<6;i++)
-//        {
-//            cout << node[i].id << "\t" << node[i].ip << "\t" << node[i].portNo << "\t"<< node[i].cost << endl;
-//        }
-//	initializationFile.close();
-//        cout << "\nhostIP" << hostIP;
-//        cout << "\nhostPort" << hostPort;
-//        cout << "\nCurrent neighbors" << endl;
-//	cout << "\nHostID-" << hostId << endl;
-//        for(currentNeighbors_itr = currentNeighbors.begin();currentNeighbors_itr != currentNeighbors.end();currentNeighbors_itr++)
-//        {
-//            cout << *currentNeighbors_itr << "\t" ;
-//            fflush(stdin);
-//        }
-//    
+              node[id].nextHopId = atoi(initLine[1].c_str());
+        }    
         
               tv.tv_sec = interval;
               tv.tv_usec = 0;
+              return 0;
 }
 
-
+}
 /*
  * This is the function which is called from the main function. This starts 
  * the tcp server and it loops continuously over th stdin , tcp-main-server, 
@@ -702,6 +698,7 @@ void createReceiveStructures()
     posToRead+=sizeof(short int);
     memcpy(&receivedFromServerPortNo,recv_data+posToRead,sizeof(short int) );
     posToRead+=sizeof(short int);
+    cout << "Received data from " << receivedFromServerPortNo << endl;
     memcpy(&(temp_in.s_addr),recv_data+posToRead,sizeof(unsigned int));
     posToRead+=sizeof(unsigned int);  
     tempIP = inet_ntoa(temp_in);
@@ -742,7 +739,7 @@ void createReceiveStructures()
     
     
     
-    for(int i = 1;i < numberofServersFollowing;i++)
+    for(int i = 1;i <= numberofServersFollowing;i++)
     {
         char *tempIP1;
         struct in_addr temp_in1;
@@ -768,7 +765,7 @@ void createReceiveStructures()
     cout << "receivedServerPortNo" << receivedFromServerPortNo << endl;
     cout << "Received Server Ip" << receivedIP << endl;        
     
-    for(int i = 1;i < numberofServersFollowing;i++)
+    for(int i = 1;i <= numberofServersFollowing;i++)
     {
         cout << receivingStructure[i].ip << endl;
         cout << receivingStructure[i].portNo << endl;
@@ -806,7 +803,7 @@ void DistanceVector()
     short int cost;
     bool sendFlag = false;
     
-    for(int i = 1;i < numberOfServers;i++)
+    for(int i = 1;i <= numberOfServers;i++)
     {
         if(strcmp(receivedIP,node[i].ip)== 0)
         {
@@ -818,7 +815,7 @@ void DistanceVector()
     
     cost = node[id].cost;
     
-    for(int i = 1;i < numberofServersFollowing;i++ )
+    for(int i = 1;i <= numberofServersFollowing;i++ )
     {
         if((cost + receivingStructure[i].cost) < node[i].cost)
         {
@@ -874,7 +871,7 @@ void check_on_stdin()
           else if(FD_ISSET(serverListner,&readfds))
           {
 
-             // cout << "Receiving some information on the server";
+              cout << "Receiving some information on the server";
               int bytes_read =0;
               
               struct sockaddr_in client_addr;
@@ -908,11 +905,12 @@ void check_on_stdin()
                                          SHOULD WE UPDATE NEIGHBORS ABOUT THIS CHANGE ? OR ONLY THROUGH PERIODIC UPDATE
                                          * 
                                          */
-                                      //  createUpdateMessage();
-                                       // sendUpdateMessageToNeighbors();
+                                      //  
                                     }
                                 }
                      }
+              createUpdateMessage();
+              sendUpdateMessageToNeighbors();
               
               tv.tv_sec = interval;
               tv.tv_usec = 0;
@@ -928,16 +926,27 @@ void server()
     serverFlag = true;
     if(tokenize_count == 5 && (strcmp(tokens[1],"-t") == 0) && (strcmp(tokens[3],"-i") == 0))
     {
-        
+        int flag = 1;
         find_ip_of_current_Server();
     
-        initialize(tokens[2]);
-    
-        routingUpdateInterval = tokens[4];
-    
-        interval = atoi(routingUpdateInterval);
+        flag = initialize(tokens[2]);
         
-        start_udp_server();
+        if(!flag)
+        {
+    
+                routingUpdateInterval = tokens[4];
+    
+                interval = atoi(routingUpdateInterval);
+        
+                start_udp_server();
+        }
+        else
+        {
+            cout << "File not found" << endl ;
+            fflush(stdout);
+            return;
+        }
+    
     }
     else
     {
@@ -956,6 +965,9 @@ void find_ip_of_current_Server()
         char cmd[60];
         int fd;
         char *host;
+        ifstream readFile;
+        string STRING;
+        
         host=getenv("HOST");
         char hostIP1[INET6_ADDRSTRLEN];
 	system("rm temphost temphost1");
@@ -964,13 +976,49 @@ void find_ip_of_current_Server()
 	system(cmd);
 	sprintf(cmd,"cut -d \" \" -f4 temphost>temphost1");
 	system(cmd);
-        fd=open("temphost1",O_RDWR,0);
-	read(fd,hostIP1,INET_ADDRSTRLEN);
-	strncpy(hostIP,hostIP1,strlen(hostIP1)-1);
-  	close(fd);
+       // fd=open("temphost1",O_RDWR,0);
+        
+        
+	//read(fd,hostIP1,INET6_ADDRSTRLEN);
+	//strncpy(hostIP,hostIP1,strlen(hostIP1)-1);
+       // hostIP[strlen(hostIP1)] = '\0' ;
+       // cout << "Inside the func for getting ip" << strlen(hostIP1);
+      //  trim(hostIP);
+      //  ifstream initializationFile;
+    
+        
+    
+        readFile.open("temphost1", ifstream::in);
+    
+    
+    
+        
+	getline(readFile,STRING); // Saves the line in STRING.
+        strcpy(hostIP,STRING.c_str());
+       // cout << "Inside the func for getting ip" << strlen(hostIP);
+       // numberOfServers = atoi(STRING.c_str());
+        
+  	//close(fd);
 }
 
+void trim(char *str)
+{
+    int i;
+    int begin = 0;
+    int end = strlen(str) - 1;
 
+    while (isspace(str[begin]))
+        begin++;
+
+    while (isspace(str[end]) && (end >= begin))
+        end--;
+
+    // Shift all characters back to the start of the string array.
+    for (i = begin; i <= end; i++)
+        str[i - begin] = str[i];
+
+    str[i - begin] = '\0'; // Null terminate string.
+}
 
 int main(int argc, char** argv)
 {
