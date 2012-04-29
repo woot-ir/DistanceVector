@@ -367,20 +367,20 @@ void display()
 {
     if(tokenize_count == 1 && serverFlag)
     {
-        cout << "<Host-server-ID>" << "\t" << "<Destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost>" << endl;
-        for(int i =1 ;i <= numberOfServers;i++)
+        cout << "<destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost-of-path>" << endl;
+        for(int i =1 ;i < 6;i++)
         {
             if(node[i].cost == 0)
             {
-                cout << hostId << "\t\t\t" <<node[i].id << "\t\t\t" << node[i].id << "\t\t\t" << node[i].cost << endl;
+                cout << node[i].id << "\t\t\t" << node[i].id << "\t\t\t" << node[i].cost << endl;
             }
             else if(node[i].cost == INF)
             {
-                cout << hostId << "\t\t\t" << node[i].id << "\t\t\t" << " " << "\t\t\t" << "INF" << endl;
+                cout << node[i].id << "\t\t\t" << " " << "\t\t\t" << "INF" << endl;
             }
             else
             {
-                cout << hostId << "\t\t\t" << node[i].id << "\t\t\t" << node[i].nextHopId << "\t\t\t" << node[i].cost << endl;
+                cout << node[i].id << "\t\t\t" << node[i].nextHopId << "\t\t\t" << node[i].cost << endl;
             }
         }
     }
@@ -744,28 +744,28 @@ int initialize(char initFile[256])
  */
 void updateRoutingTable()
 {
-    //cout << "Routing table updating \n";
+    cout << "Routing table updating \n";
     for(int i = 1;i <= numberOfServers;i++)
     {
         routingTable[hostId][i] = node[i].cost;
         
     }
     
-//    for(int i1 = 0;i1 <= numberOfServers;i1++)
-//    {
-//        
-//        for(int j=0 ; j<= numberOfServers;j++)
-//        {
-//            cout << routingTable[i1][j] << "\t" ;
-//        }
-//        cout << "\n";
-//    }
+    for(int i1 = 0;i1 <= numberOfServers;i1++)
+    {
+        
+        for(int j=0 ; j<= numberOfServers;j++)
+        {
+            cout << routingTable[i1][j] << "\t" ;
+        }
+        cout << "\n";
+    }
     
 }
 
 void initNeighborsToCostMap()
 {
-    //cout << "Neighbors to cost map\n";
+    cout << "Neighbors to cost map\n";
     for(int i = 1;i <= numberOfServers;i++)
     {
         if(hostId == i)
@@ -777,10 +777,10 @@ void initNeighborsToCostMap()
                 neighborsToCostMap.insert(pair<int,int>(node[i].id,node[i].cost));
         }
     }
-//    for(neighborsToCostMapItr = neighborsToCostMap.begin();neighborsToCostMapItr!=neighborsToCostMap.end();neighborsToCostMapItr++)
-//    {
-//        cout << neighborsToCostMapItr->first << "\t" << neighborsToCostMapItr->second << endl;
-//    }
+    for(neighborsToCostMapItr = neighborsToCostMap.begin();neighborsToCostMapItr!=neighborsToCostMap.end();neighborsToCostMapItr++)
+    {
+        cout << neighborsToCostMapItr->first << "\t" << neighborsToCostMapItr->second << endl;
+    }
 }
 /*
  * This is the function which is called from the main function. This starts 
@@ -826,7 +826,7 @@ void start_udp_server()
         
         addr_len = sizeof(struct sockaddr);
 
-	//cout << "\nUDPServer Waiting for client on port" << hostPort;
+	cout << "\nUDPServer Waiting for client on port" << hostPort;
         fflush(stdout);
         
         serverListner = sock;
@@ -864,7 +864,7 @@ void createReceiveStructures()
     posToRead+=sizeof(short int);
     memcpy(&receivedFromServerPortNo,recv_data+posToRead,sizeof(short int) );
     posToRead+=sizeof(short int);
-   // cout << "Received data from " << receivedFromServerPortNo << endl;
+    cout << "Received data from " << receivedFromServerPortNo << endl;
     memcpy(&(temp_in.s_addr),recv_data+posToRead,sizeof(unsigned int));
     posToRead+=sizeof(unsigned int);  
     tempIP = inet_ntoa(temp_in);
@@ -940,8 +940,6 @@ void createReceiveStructures()
         cout << receivingStructure[i].cost << endl;
         cout << "-----------------------------------------------------" << endl;
     }
-    write(1,"Bulls>",6);
-    fflush(stdout);
     //exit(0);
 }
 
@@ -995,55 +993,31 @@ void DistanceVector()
     
         routingTable[hostId][i] = min;
         node[i].cost = min;
-    }  
-//        cout << "Inside Distance Vector Printing the cost &" << endl;
-//        cout << "<Id>\t" << "<cost>\t" << "<nextHop>\t"<< "<ip>" << endl;
-//        for(int i=1;i<=numberOfServers;i++)
-//        {
-//            cout << node[i].id << "\t" << node[i].cost << "\t" << node[i].nextHopId << "\t" << node[i].ip;
-//            cout << endl;
-//        }
-       
-       // exit(0);
+    }
+    
+   
+    
+    
+    
 }
 
 void updateRoutingTableWithIncomingNeighborsDV()
 {
-    int tempid;
-   // cout << "<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>" ;
+    int id;
     for(int i = 1;i <= numberOfServers; i++)
     {
-     //   cout << "receivedIP\t" << receivedIP << "nodeIP\t" << node[i].ip << endl;
-        
-        if(strcmp(node[i].ip,receivedIP) == 0)
+        if(strcmp(node[i].ip,receivedIP) == 0);
         {
-            tempid = node[i].id;
+            id = i;
             break;
         }
-        
-        
     }
-   
-    
     
     for(int j = 1;j <= numberOfServers;j++)
     {
-        routingTable[tempid][j] = receivingStructure[j].cost;
+        routingTable[id][j] = receivingStructure[j].cost;
     }
     
-    //cout << "Updating routing table with incoming neighbors DV" << endl;
-            
-//    for(int i1 = 1;i1 <= numberOfServers;i1++)
-//    {
-//        
-//        for(int j=1 ; j<= numberOfServers;j++)
-//        {
-//            cout << routingTable[i1][j] << "\t" ;
-//        }
-//        cout << "\n";
-//    }
-//    
-//    cout << "Calculating DV\n\n";
     DistanceVector();
     
 }
@@ -1084,7 +1058,7 @@ void check_on_stdin()
           else if(FD_ISSET(serverListner,&readfds))
           {
 
-             // cout << "Receiving some information on the server";
+              cout << "Receiving some information on the server";
               int bytes_read =0;
               
               struct sockaddr_in client_addr;
@@ -1093,7 +1067,7 @@ void check_on_stdin()
               noOfUpdatePackets++;
               createReceiveStructures();
               updateRoutingTableWithIncomingNeighborsDV();
-              //DistanceVector();  
+              DistanceVector();  
              // updateLocalStructures();
           }
           else if(serverFlag)
