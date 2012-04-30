@@ -419,7 +419,7 @@ void disable()
             /*
              * Getting the positions from the two maps
              */
-                tempCurrentNeighborsItr = .find(atoi(tokens[1]));
+                tempCurrentNeighborsItr = currentNeighbors.find(atoi(tokens[1]));
                 neighborsToCostMapItr = neighborsToCostMap.find(atoi(tokens[1]));
                 if(tempCurrentNeighborsItr == currentNeighbors.end() || neighborsToCostMapItr == neighborsToCostMap.end())
                 {
