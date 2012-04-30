@@ -119,14 +119,23 @@ struct pcmds cmds[] = {
 
 struct NODE node[6];
 struct RECEIVESTRUCTURE receivingStructure[6];
-//vector<int> currentNeighbors;
-//vector<int>::iterator currentNeighbors_itr;
-map <int,int> currentNeighbors;   // This will hold the id with the count
+
+/*
+ * These are the maps used to hold specific information required for the DV algorithm
+ */
+/*holds <id,count> used for making the cost to INF if there is no response for 3 time units*/
+map <int,int> currentNeighbors;   
 map <int,int>::iterator currentNeighborsItr;
-map <int,int> neighborsToCostMap;
+
+/*Holds <id,cost> the cost is used for calculating the cost to neighbors*/
+map <int,int> neighborsToCostMap;  
 map <int,int>::iterator neighborsToCostMapItr;
 
-//char hostIP = (char *)malloc(16*sizeof(char));
+/*This stores ID of the node which is disabled so this rejects the further DV from the specific node */
+map <int,int> disableLinkMap;
+map <int,int>::iterator disableLinkMapItr;
+
+
 char hostIP[INET6_ADDRSTRLEN];
 short int hostPort;
 short int hostId;
@@ -149,8 +158,9 @@ struct timeval tv;
 fd_set readfds;
 int **routingTable;
 
+
 /**
- * This is the function which performs the function of sending the update message to the neighbors
+ * This is the function which performs the function of sending the update message only to the neighbors
  * This takes care of not sending the update message if the cost of the link is infinity
  */
 void sendUpdateMessageToNeighbors()
@@ -185,11 +195,12 @@ void sendUpdateMessageToNeighbors()
     
 }
 /*    
- * number of servers(2) + Host server port(2) +Host serverIP(4)                                
-                     +
+   number of servers(2) + Host server port(2) +Host serverIP(4)                                
+                     (+)
    ( Server IP n(4) + Server port n(2) + 0x0(2) + Server ID n(2) + Cost n(2) ) * number of servers
- * 
- * The above mentioned fields will be mem copied into a char[] and this is sent to the neighbors
+  
+  The above mentioned fields will be mem copied into a char[] and this is sent to the neighbors.
+  The data is copied from the structure NODE. which will be updated by the Distance Vector Algorithm
 */
  void createUpdateMessage()
 {
@@ -225,14 +236,12 @@ void sendUpdateMessageToNeighbors()
         pos+=sizeof(short int);
     }
     
-   // printf("message -->%d",strlen(updateMessage));//-" << updateMessage << endl ;
-
 }
 
 /*
  * This is the function which will be called when the user wishes to update the link cost
- * This method takes care of checking the no of parameters , whether the user can update a link , whether a node is the 
- * neighbor of the current node. 
+ * This method takes care of checking the no of parameters , whether the user can update a link , 
+ * whether a node is the neighbor of the current node. 
  * If the update is successful the link cost is updated and this information is sent to the neighbors in the next periodic update 
  * or when the user issues the command "Step"
  * 
@@ -269,7 +278,7 @@ void update()
             if(isNeighbor)
             {
             // update the local structure eg : - update 1 2 8 in server 1 
-                if(strcmp(tokens[3],"inf") == 0)
+                if(strcmp(tokens[3],"inf") == 0 || strcmp(tokens[3],"INF") == 0)
                 {
                         node[atoi(tokens[2])].cost = INF;
                         routingTable[atoi(tokens[1])][atoi(tokens[2])] = INF;
@@ -288,13 +297,13 @@ void update()
                 }
            
                 DistanceVector();
-                cout << "Update success";
+                cout << "40 <Update> SUCCESS";
 		fflush(stdout);
                 return;
             }
             else
             {
-                cout << "Not a neighbor so cannot update the cost" << endl;
+                cout << "40 <Update> <Not a neighbor so cannot update the cost>" << endl;
                 fflush(stdout);
                 return;
             }
@@ -303,7 +312,7 @@ void update()
         }
         else
         {
-            cout << "You are updating distance at the wrong server";
+            cout << "40 <Update> <You are updating distance at the wrong server>" << endl;
 		fflush(stdout);
                 return;
         }
@@ -311,7 +320,7 @@ void update()
     }
     else
     {
-        cout << "The update command is not correct or server command is not executed\n";
+        cout << " 40 <Update> <The update command is not correct or server command is not executed>" << endl;
         fflush(stdout);
 	 return;
     }
@@ -328,10 +337,11 @@ void step()
     {
         createUpdateMessage();
         sendUpdateMessageToNeighbors();
+        cout << "40 <Step> SUCCESS";
     }
     else
     {
-        cout << "The update command is not correct or server command is not executed\n";
+        cout << "40 <Step> <The update command is not correct or server command is not executed\n>";
         fflush(stdout);
 	return;
     }
@@ -344,13 +354,13 @@ void packets()
 {
     if(serverFlag && (tokenize_count == 1))
     {
-        cout << "The number of Update Packets received since the last invocation is" << noOfUpdatePackets << endl;
+        cout << "40 <Packets> SUCCESS" << endl <<"The number of Update Packets received since the last invocation is " << noOfUpdatePackets << endl;
         noOfUpdatePackets = 0;
         return;
     }
     else
     {
-        cout << "The update command is not correct or server command is not executed\n";
+        cout << "40 <Packets> <The update command is not correct or server command is not executed\n>";
         fflush(stdout);
 	return;
         
@@ -367,40 +377,37 @@ void display()
 {
     if(tokenize_count == 1 && serverFlag)
     {
-        cout << "<Host-server-ID>" << "\t" << "<Destination-server-ID>" << "\t" << "<next-hop-server-ID>" << "\t" << "<cost>" << endl;
+        cout << "<Host-server>" << "\t<Destination-server>" << "\t<next-hop-server>" << "\t\t<cost>" << endl;
         for(int i =1 ;i <= numberOfServers;i++)
         {
             if(node[i].cost == 0)
             {
-                cout << hostId << "\t\t\t" <<node[i].id << "\t\t\t" << node[i].id << "\t\t\t" << node[i].cost << endl;
+                cout << "\t" << hostId << "\t\t\t" <<node[i].id << "\t\t\t" << node[i].id << "\t\t" << node[i].cost << endl;
             }
             else if(node[i].cost == INF)
             {
-                cout << hostId << "\t\t\t" << node[i].id << "\t\t\t" << " " << "\t\t\t" << "INF" << endl;
+                cout << "\t" <<  hostId << "\t\t\t" << node[i].id << "\t\t\t" << " " << "\t\t" << "INF" << endl;
             }
             else
             {
-                cout << hostId << "\t\t\t" << node[i].id << "\t\t\t" << node[i].nextHopId << "\t\t\t" << node[i].cost << endl;
+                cout << "\t" <<  hostId << "\t\t\t" << node[i].id << "\t\t\t" << node[i].nextHopId << "\t\t" << node[i].cost << endl;
             }
         }
+        cout << "40 <display> SUCCESS" << endl;
     }
     else
     {
-        cout << "Command issued is not correct or the server is not started" << endl;
+        cout << "40 <display> <Command issued is not correct or the server is not started>" << endl;
     }
 }
 
 
  /*
-     * check if the input given is a neighbor if so follow the next step
-        node[id].cost set to infinity and we have to erase the id from the map
-     * 
-     * What happens if I disable 2 at server 1 and a message comes from server 2 to server 1
-     * 
-     * How to handle incoming new servers ? yes
-     * 
-     * Adding new neighbors ?
-     */
+  * This is the function which is used to disable a neighbor.
+  * On disable I add the Id into a disable map and I make sure that when I receive DV from this server I reject those
+  * I remove the Id mentioned in the  currentNeighbors neighborsToCostMap maps and I set the cost to Inf in my local structures
+  */   
+ 
     
 void disable()
 {
@@ -412,42 +419,48 @@ void disable()
             /*
              * Getting the positions from the two maps
              */
-                tempCurrentNeighborsItr = currentNeighbors.find(atoi(tokens[1]));
+                tempCurrentNeighborsItr = .find(atoi(tokens[1]));
                 neighborsToCostMapItr = neighborsToCostMap.find(atoi(tokens[1]));
-                if(tempCurrentNeighborsItr == currentNeighbors.end() && neighborsToCostMapItr == neighborsToCostMap.end())
+                if(tempCurrentNeighborsItr == currentNeighbors.end() || neighborsToCostMapItr == neighborsToCostMap.end())
                 {
-                        cout << "Disabled failed since the node you entered is not the current node's neighbor";
+                        cout << "40 <Disable><Disabled failed since the node you entered is not the current node's neighbor>";
+                        fflush(stdout);
+                        return;
                 }
                 else
                 {
+                        
+                        
                         int tempID = tempCurrentNeighborsItr->first;
                         node[tempID].cost = INF;
                         currentNeighbors.erase(tempCurrentNeighborsItr);
                         neighborsToCostMap.erase(neighborsToCostMapItr);
                         routingTable[hostId][tempID] = INF;
                         DistanceVector();
+                        disableLinkMap.insert(pair<int,int>(atoi(tokens[1]),1));
+                        cout << "40 <Disable> SUCCESS" << endl;
+                        fflush(stdout);
+                        return;
+                        
                 }
         
         }
         else
         {
-                cout << "Disable command not executed in a proper way" << endl;
+                cout << "40 <Disable> <Disable command not executed in a proper way>" << endl;
                 fflush(stdout);
                 return;
         }
         
     }
-//    else
-//    {
-//        cout << "Command not issued properly or the server is not started" << endl;
-//        fflush(stdout);
-//        return;
-//    }
-//}
+
+/**
+ * This is used to crash the server . The server crashed will stop listening to 
+ * the incoming DV and does not perform any operation
+ */
 void crash ()
 {
-   // exit(0);
-    
+   
     if(tokenize_count == 1 && serverFlag)
     {
         serverFlag = false;
@@ -457,10 +470,11 @@ void crash ()
         
         FD_CLR(serverListner,&readfds);
         serverListner = 0;
+        cout << "40<Crash>SUCCESS" << endl;
     }
     else
     {
-        cout << "Command not issued properly or the server is not started" << endl;
+        cout << "40<Crash><Command not issued properly or the server is not started>" << endl;
         fflush(stdout);
         return;
     }
@@ -546,32 +560,39 @@ void initialize()
     
 }
 
-
+/*
+ * This is used to create a 2 dimensional array 
+ * This is used as the routing table. DV are stored in this array and updated on 
+ * running the Bellman Ford algorithm
+ */
 int **populateArray(int nos)
 {
     int i;
-      int **dat2;
+      int **Array2;
       nos++;
       /*  allocate array of pointers  */
-      dat2 = (int **)malloc( nos*sizeof(int*));
+      Array2 = (int **)malloc( nos*sizeof(int*));
 
-      if(dat2==NULL) {
+      if(Array2==NULL) {
         printf("\nError allocating memory\n");
         exit(1);
       }
       /*  allocate each row  */
       for(i = 0; i < nos; i++) {
-        dat2[i] = (int *)malloc( nos*sizeof(int));
+        Array2[i] = (int *)malloc( nos*sizeof(int));
       }
-      if(dat2[i-1]==NULL) {
+      if(Array2[i-1]==NULL) {
         printf("\nError allocating memory\n");
         exit(1);
       }
 
 
-      return dat2;
+      return Array2;
 }
 
+/**
+ * Intializing the routing table
+ */
 void initializeArray()
 {
     for(int i = 0;i <= numberOfServers;i++)
@@ -592,7 +613,8 @@ void initializeArray()
         
 }
 /**
- * 
+ * This is the function which is used to read the init file on issuing the server command
+ * This method creates the local structures which holds the information like the <id><cost><ip><portNo> etc
  * @param initFile
  * @return 
  */
@@ -615,11 +637,11 @@ int initialize(char initFile[256])
         
 	getline(initializationFile,STRING); // Saves the line in STRING.
         numberOfServers = atoi(STRING.c_str());
-	cout << "Number of servers"<< numberOfServers << endl; // Prints our STRING.
+	//cout << "Number of servers"<< numberOfServers << endl; // Prints our STRING.
         
         getline(initializationFile,STRING); // Saves the line in STRING.
         numberOfNeighbors = atoi(STRING.c_str());
-	cout << "Number of neighbors"<< numberOfNeighbors << endl;
+	//cout << "Number of neighbors"<< numberOfNeighbors << endl;
         
         /*
          *  Here I am creating a two dimensional array for maintaining the DV of itself and other neighbors
@@ -665,7 +687,7 @@ int initialize(char initFile[256])
               node[id].id = id;
               strcpy(node[id].ip,initLine[1].c_str());
 		
-               cout << "\nnode[id].ip-->" << node[id].ip << "\t" << strlen(node[id].ip);
+              // cout << "\nnode[id].ip-->" << node[id].ip << "\t" << strlen(node[id].ip);
 		//cout << "\nHostIP--->" << hostIP ;//<< "\t" << strlen(hostIP);	
 	
                /**
@@ -744,28 +766,18 @@ int initialize(char initFile[256])
  */
 void updateRoutingTable()
 {
-    //cout << "Routing table updating \n";
+   
     for(int i = 1;i <= numberOfServers;i++)
     {
         routingTable[hostId][i] = node[i].cost;
         
     }
     
-//    for(int i1 = 0;i1 <= numberOfServers;i1++)
-//    {
-//        
-//        for(int j=0 ; j<= numberOfServers;j++)
-//        {
-//            cout << routingTable[i1][j] << "\t" ;
-//        }
-//        cout << "\n";
-//    }
-    
 }
 
 void initNeighborsToCostMap()
 {
-    //cout << "Neighbors to cost map\n";
+    
     for(int i = 1;i <= numberOfServers;i++)
     {
         if(hostId == i)
@@ -777,15 +789,13 @@ void initNeighborsToCostMap()
                 neighborsToCostMap.insert(pair<int,int>(node[i].id,node[i].cost));
         }
     }
-//    for(neighborsToCostMapItr = neighborsToCostMap.begin();neighborsToCostMapItr!=neighborsToCostMap.end();neighborsToCostMapItr++)
-//    {
-//        cout << neighborsToCostMapItr->first << "\t" << neighborsToCostMapItr->second << endl;
-//    }
+
 }
+
 /*
  * This is the function which is called from the main function. This starts 
- * the tcp server and it loops continuously over th stdin , tcp-main-server, 
- * connection fd's
+ * the UDP server and it loops continuously over th stdin , UDP-main-server, 
+ * 
  */
 void start_shell()
 {
@@ -833,6 +843,9 @@ void start_udp_server()
 
 }
 
+/*
+ * This function adds new node into the currentNeighbors neighborsToCostMap
+ */
 void addNewNode(int id)
 {
     currentNeighbors.insert(pair<int,int>(id,3));
@@ -864,7 +877,7 @@ void createReceiveStructures()
     posToRead+=sizeof(short int);
     memcpy(&receivedFromServerPortNo,recv_data+posToRead,sizeof(short int) );
     posToRead+=sizeof(short int);
-   // cout << "Received data from " << receivedFromServerPortNo << endl;
+   cout << "Received data from " << receivedFromServerPortNo << endl;
     memcpy(&(temp_in.s_addr),recv_data+posToRead,sizeof(unsigned int));
     posToRead+=sizeof(unsigned int);  
     tempIP = inet_ntoa(temp_in);
@@ -887,19 +900,23 @@ void createReceiveStructures()
     map <int,int>::iterator tempCurrentNeighborsItr;
     
     tempCurrentNeighborsItr = currentNeighbors.find(tempId);
+    disableLinkMapItr = disableLinkMap.find(tempId);
     /*
      * If the tempCurrentNeighborItr returns a value other than map::end()
      * Then set its count field to 3
      * else
      * this is a new node and it has to be handled
      */
-    if(tempCurrentNeighborsItr != currentNeighbors.end())
+    if(disableLinkMapItr == disableLinkMap.end())
     {
-        tempCurrentNeighborsItr->second = 3;
-    }
-    else
-    {
-        addNewNode(tempId);
+        if(tempCurrentNeighborsItr != currentNeighbors.end())
+        {
+                tempCurrentNeighborsItr->second = 3;
+        }
+        else
+        {
+                addNewNode(tempId);
+        }
     }
     
     
@@ -927,48 +944,17 @@ void createReceiveStructures()
         memcpy(&receivingStructure[i].cost,recv_data+posToRead,sizeof(short int));
         posToRead+=sizeof(short int);
     }
-    cout << "numberofServers" << numberofServersFollowing << endl;
-    cout << "receivedServerPortNo" << receivedFromServerPortNo << endl;
-    cout << "Received Server Ip" << receivedIP << endl;        
-    
-    for(int i = 1;i <= numberofServersFollowing;i++)
-    {
-        cout << receivingStructure[i].ip << endl;
-        cout << receivingStructure[i].portNo << endl;
-        cout << receivingStructure[i].dummy << endl;
-        cout << receivingStructure[i].id << endl;
-        cout << receivingStructure[i].cost << endl;
-        cout << "-----------------------------------------------------" << endl;
-    }
-    write(1,"Bulls>",6);
-    fflush(stdout);
-    //exit(0);
+
 }
 
-             
-
-
-               /* get the server ID from the incoming server IP
-               * get cost = node[id].cost
-               * 
-               * for(i=1 to number of servers)
-               * {
-               *        if(cost + receivedStructure[i].cost) < node[i].cost
-               *        update the node[i].cost
-               *        set boolean sendflag to true
-               * 
-               * }
-               * 
-               * if(sendFlag)
-               * {
-               *        Send it to neighbors
-               * }
-               *
-               */
-
+          
+/*
+ * Dx(Y) = min {(c(x,y) + Dy(Y)),c(x,z)+Dz(Y)}
+ * This is the method which executes the Bellman Ford algorithm  mention above and it updates the structures accordingly
+ */
 void DistanceVector()
 {
-    //Dx(Y) = min {(c(x,y) + Dy(Y)),c(x,z)+Dz(Y)}
+    
     for(int i = 1;i <= numberOfServers;i++)
     {
         short int min = INF;
@@ -989,32 +975,25 @@ void DistanceVector()
                 //sendFlag = true;
             }
         }
-         /**
-     *  Have to update the cost in the structures from the array.
-     */
+         
     
         routingTable[hostId][i] = min;
         node[i].cost = min;
     }  
-//        cout << "Inside Distance Vector Printing the cost &" << endl;
-//        cout << "<Id>\t" << "<cost>\t" << "<nextHop>\t"<< "<ip>" << endl;
-//        for(int i=1;i<=numberOfServers;i++)
-//        {
-//            cout << node[i].id << "\t" << node[i].cost << "\t" << node[i].nextHopId << "\t" << node[i].ip;
-//            cout << endl;
-//        }
-       
-       // exit(0);
+
 }
 
+/*
+ * This function updates the routing table when a DV is received at a node
+ * Based on the id of the node the Routing Table gets updated
+ */
 void updateRoutingTableWithIncomingNeighborsDV()
 {
     int tempid;
-   // cout << "<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>" ;
+   
     for(int i = 1;i <= numberOfServers; i++)
     {
-     //   cout << "receivedIP\t" << receivedIP << "nodeIP\t" << node[i].ip << endl;
-        
+      
         if(strcmp(node[i].ip,receivedIP) == 0)
         {
             tempid = node[i].id;
@@ -1024,34 +1003,20 @@ void updateRoutingTableWithIncomingNeighborsDV()
         
     }
    
-    
-    
     for(int j = 1;j <= numberOfServers;j++)
     {
         routingTable[tempid][j] = receivingStructure[j].cost;
     }
     
-    //cout << "Updating routing table with incoming neighbors DV" << endl;
-            
-//    for(int i1 = 1;i1 <= numberOfServers;i1++)
-//    {
-//        
-//        for(int j=1 ; j<= numberOfServers;j++)
-//        {
-//            cout << routingTable[i1][j] << "\t" ;
-//        }
-//        cout << "\n";
-//    }
-//    
-//    cout << "Calculating DV\n\n";
     DistanceVector();
     
 }
+
+/*
+ * 
+ */
 void check_on_stdin()
 {
-
-	
-	
 	char cmdline[256];
         int n =0;
         if(count1 == 0)
@@ -1071,7 +1036,7 @@ void check_on_stdin()
 	      perror ("select");
 	      exit (1);
 	    }
-	  if (FD_ISSET(0, &readfds))
+	  if (FD_ISSET(0, &readfds))  // This handles the case when there is input from the command line
 	    {
 	   //   check=1;
 	      fgets(cmdline, 256, stdin);
@@ -1081,7 +1046,7 @@ void check_on_stdin()
                 count1++;
 		docmd(cmdline);
 	    }
-          else if(FD_ISSET(serverListner,&readfds))
+          else if(FD_ISSET(serverListner,&readfds))  // This handles the case when there is input on the server
           {
 
              // cout << "Receiving some information on the server";
@@ -1096,11 +1061,10 @@ void check_on_stdin()
               //DistanceVector();  
              // updateLocalStructures();
           }
-          else if(serverFlag)
+          else if(serverFlag)  // This is on timeout
           {
-              //map alli decrement the value if value is equal to zero then set the cost to inf
-              // create update message
-              //send to neighbors
+              /*Decrement the value in a map if value is equal to zero then set the cost to inf*/
+               
               
               
               for(currentNeighborsItr = currentNeighbors.begin();currentNeighborsItr != currentNeighbors.end(); currentNeighborsItr++)
@@ -1134,15 +1098,11 @@ void check_on_stdin()
 }
 
 char *routingUpdateInterval = NULL;
-//    
-//void updateLocalStructures()
-//{
-//    int i;
-//    for( i = 1;i<= numberOfNeighbors;i++ )
-//    {
-//        node[i].cost = routingTable[hostId][i];
-//    }
-//}
+
+/*
+ * Executed on issuing the server command.
+ * This inturn calls other methods which does initialization , creating structures, sets the routing update interval
+ */
 void server()
 {
     serverFlag = true;
@@ -1168,7 +1128,7 @@ void server()
         }
         else
         {
-            cout << "File not found" << endl ;
+            cout << "40 <Server> <File not found>" << endl ;
             fflush(stdout);
             return;
         }
@@ -1176,7 +1136,7 @@ void server()
     }
     else
     {
-        cout << "Invalid number of arguments or invalid options given\n";
+        cout << "40 <Server> <Invalid number of arguments or invalid options given\n>";
         //fflush(stdout);
         return;
     }
@@ -1202,18 +1162,7 @@ void find_ip_of_current_Server()
 	system(cmd);
 	sprintf(cmd,"cut -d \" \" -f4 temphost>temphost1");
 	system(cmd);
-       // fd=open("temphost1",O_RDWR,0);
-        
-        
-	//read(fd,hostIP1,INET6_ADDRSTRLEN);
-	//strncpy(hostIP,hostIP1,strlen(hostIP1)-1);
-       // hostIP[strlen(hostIP1)] = '\0' ;
-       // cout << "Inside the func for getting ip" << strlen(hostIP1);
-      //  trim(hostIP);
-      //  ifstream initializationFile;
-    
-        
-    
+       
         readFile.open("temphost1", ifstream::in);
     
     
@@ -1221,30 +1170,9 @@ void find_ip_of_current_Server()
         
 	getline(readFile,STRING); // Saves the line in STRING.
         strcpy(hostIP,STRING.c_str());
-       // cout << "Inside the func for getting ip" << strlen(hostIP);
-       // numberOfServers = atoi(STRING.c_str());
-        
-  	//close(fd);
+       
 }
 
-void trim(char *str)
-{
-    int i;
-    int begin = 0;
-    int end = strlen(str) - 1;
-
-    while (isspace(str[begin]))
-        begin++;
-
-    while (isspace(str[end]) && (end >= begin))
-        end--;
-
-    // Shift all characters back to the start of the string array.
-    for (i = begin; i <= end; i++)
-        str[i - begin] = str[i];
-
-    str[i - begin] = '\0'; // Null terminate string.
-}
 
 int main(int argc, char** argv)
 {
